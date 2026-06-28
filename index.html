@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saronic Gulf — Sailing Routes July 2026</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy: #0d2b4e;
+    --navy-light: #1a3f6f;
+    --teal: #0e7c7b;
+    --teal-light: #13a9a8;
+    --teal-pale: #e6f7f7;
+    --white: #ffffff;
+    --off-white: #f4f7fa;
+    --text: #1a2535;
+    --text-mid: #4a5568;
+    --text-muted: #718096;
+    --border: #d1dde8;
+    --shadow: 0 2px 12px rgba(13,43,78,0.12);
+    --shadow-lg: 0 8px 32px rgba(13,43,78,0.18);
+    --radius: 8px;
+    --panel-w: 360px;
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--off-white);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--navy);
+    color: var(--white);
+    padding: 0 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    z-index: 100;
+  }
+  .header-logo { font-size: 20px; margin-right: 4px; }
+  header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    flex: 1;
+  }
+  header h1 span {
+    font-weight: 400;
+    opacity: 0.7;
+    font-size: 13px;
+    margin-left: 8px;
+  }
+  .trip-badge {
+    background: var(--teal);
+    color: var(--white);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+
+  /* ── ROUTE SWITCHER BAR ── */
+  .switcher-bar {
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    flex-shrink: 0;
+    z-index: 50;
+  }
+  .nav-btn {
+    background: var(--navy);
+    color: var(--white);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s;
+    line-height: 1;
+  }
+  .nav-btn:hover { background: var(--navy-light); }
+  .route-title-wrap {
+    flex: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+  }
+  .route-counter { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+  .route-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .route-dots { display: flex; gap: 5px; flex-shrink: 0; }
+  .route-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .route-dot.active { background: var(--teal); }
+
+  /* ── MAIN AREA ── */
+  .main-area {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── MAP ── */
+  #map {
+    flex: 1;
+    min-width: 0;
+    z-index: 1;
+    position: relative;
+  }
+
+  /* ── WIND LEGEND ── */
+  .wind-legend {
+    position: absolute;
+    bottom: 24px;
+    left: 12px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-size: 12px;
+    z-index: 500;
+    box-shadow: var(--shadow);
+    pointer-events: none;
+  }
+  .wind-legend-title {
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .wl-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .wl-row:last-child { margin-bottom: 0; }
+
+  /* ── RIGHT PANEL ── */
+  .right-panel {
+    width: var(--panel-w);
+    background: var(--white);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .panel-overview {
+    flex-shrink: 0;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-overview-header {
+    padding: 10px 14px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .overview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    min-width: 300px;
+  }
+  .overview-table thead th {
+    color: var(--text-muted);
+    font-weight: 500;
+    text-align: left;
+    padding: 4px 10px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .overview-table thead th:first-child { padding-left: 14px; }
+  .overview-table tbody tr {
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .overview-table tbody tr:hover td { background: var(--teal-pale); }
+  .overview-table tbody tr.selected td { background: #ddf0f0; }
+  .overview-table td {
+    padding: 5px 10px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .overview-table td:first-child { padding-left: 14px; }
+  .day-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; }
+  .day-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── LEG DETAIL (below overview) ── */
+  .panel-detail {
+    flex: 1;
+    overflow-y: auto;
+    display: none;
+  }
+  .panel-detail.open { display: block; }
+
+  .detail-header {
+    padding: 12px 14px 10px;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .detail-header-text { flex: 1; min-width: 0; }
+  .detail-close {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: var(--white);
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 15px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .detail-close:hover { background: rgba(255,255,255,0.3); }
+  .detail-day {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.75;
+    margin-bottom: 3px;
+  }
+  .detail-route-label { font-size: 15px; font-weight: 700; line-height: 1.2; }
+  .detail-sub { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+
+  .detail-section { padding: 12px 14px 0; }
+  .detail-section + .detail-section { border-top: 1px solid var(--border); margin-top: 12px; }
+  .detail-section:last-child { padding-bottom: 20px; }
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  .stat-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+    font-size: 13px;
+  }
+  .stat-icon { font-size: 15px; flex-shrink: 0; }
+  .stat-label { color: var(--text-muted); font-size: 12px; }
+  .stat-value { font-weight: 600; color: var(--navy); margin-left: auto; }
+
+  .duration-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .duration-table th {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-align: left;
+    padding: 0 8px 5px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .duration-table th:last-child { text-align: right; }
+  .duration-table td {
+    padding: 5px 8px 5px 0;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .duration-table td:last-child { text-align: right; font-weight: 600; }
+  .duration-table tr:last-child td { border-bottom: none; }
+
+  .wind-pip {
+    display: inline-block;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .w-light    { background: #22c55e; }
+  .w-moderate { background: #f59e0b; }
+  .w-strong   { background: #ef4444; }
+
+  .tip-box {
+    background: var(--teal-pale);
+    border-left: 3px solid var(--teal);
+    padding: 9px 11px;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .tip-box strong {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 3px;
+  }
+  .note-box {
+    background: #fff8e6;
+    border-left: 3px solid #f59e0b;
+    padding: 9px 11px;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .note-box strong {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #b45309;
+    margin-bottom: 3px;
+  }
+
+  /* ── MAP MARKERS ── */
+  .stop-label {
+    background: var(--navy);
+    color: var(--white);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 12px;
+    white-space: nowrap;
+    border: 2px solid var(--white);
+    cursor: default;
+  }
+  .day-marker {
+    background: var(--white);
+    color: var(--navy);
+    font-size: 10px;
+    font-weight: 700;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid currentColor;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .leaflet-tooltip {
+    background: var(--navy) !important;
+    color: var(--white) !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    padding: 4px 8px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+  }
+  .leaflet-tooltip::before {
+    border-top-color: var(--navy) !important;
+    border-bottom-color: var(--navy) !important;
+  }
+
+  .panel-detail::-webkit-scrollbar { width: 4px; }
+  .panel-detail::-webkit-scrollbar-track { background: transparent; }
+  .panel-detail::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="header-logo">⛵</span>
+  <h1>Saronic Gulf — Sailing Routes <span>Oceanis 43ft · Beginners</span></h1>
+  <span class="trip-badge">July 18–25, 2026</span>
+</header>
+
+<div class="switcher-bar">
+  <button class="nav-btn" id="prevBtn" aria-label="Previous route">&#8592;</button>
+  <div class="route-title-wrap">
+    <span class="route-counter" id="routeCounter">Route 1 of 5</span>
+    <span class="route-name" id="routeName">Classic Saronic Loop</span>
+  </div>
+  <div class="route-dots" id="routeDots"></div>
+  <button class="nav-btn" id="nextBtn" aria-label="Next route">&#8594;</button>
+</div>
+
+<div class="main-area">
+  <div id="map">
+    <div class="wind-legend">
+      <div class="wind-legend-title">⚓ Wind</div>
+      <div class="wl-row"><span class="wind-pip w-light"></span> Light 10–12 kt</div>
+      <div class="wl-row"><span class="wind-pip w-moderate"></span> Moderate 15–18 kt</div>
+      <div class="wl-row"><span class="wind-pip w-strong"></span> Strong 20–25 kt</div>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <div class="panel-overview">
+      <div class="panel-overview-header">Daily Overview</div>
+      <table class="overview-table">
+        <thead>
+          <tr>
+            <th>Day</th>
+            <th>Route</th>
+            <th style="text-align:right">km</th>
+            <th style="text-align:right">Mod.</th>
+          </tr>
+        </thead>
+        <tbody id="overviewBody"></tbody>
+      </table>
+    </div>
+
+    <div class="panel-detail" id="panelDetail">
+      <div id="detailContent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+
+const COORDS = {
+  'Marina Kalamaki':       [37.9100, 23.7000],
+  'Aegina Town':           [37.7420, 23.4270],
+  'Perdika':               [37.6780, 23.4000],
+  'Souvala':               [37.7800, 23.5000],
+  'Angistri (Skala)':      [37.7040, 23.3380],
+  'Angistri (Megalochori)':[37.6960, 23.3480],
+  'Poros Town':            [37.4980, 23.4560],
+  'Hydra':                 [37.3460, 23.4640],
+  'Spetses':               [37.2550, 23.1570],
+  'Porto Heli':            [37.3280, 23.1490],
+  'Ermioni':               [37.3840, 23.2560],
+  'Galatas':               [37.5060, 23.4490],
+  'Dokos Island':          [37.3330, 23.3580],
+  'Methana (Vathi Bay)':   [37.6070, 23.3800],
+  'Koilada':               [37.3060, 23.1260],
+  'Zea Marina':            [37.9320, 23.6480],
+};
+
+const DATES = [
+  'Saturday July 18',
+  'Sunday July 19',
+  'Monday July 20',
+  'Tuesday July 21',
+  'Wednesday July 22',
+  'Thursday July 23',
+  'Friday July 24',
+];
+
+const DAY_COLORS = [
+  '#2563eb',
+  '#0891b2',
+  '#16a34a',
+  '#d97706',
+  '#ea580c',
+  '#dc2626',
+  '#9f1239',
+];
+
+const ROUTES = [
+  {
+    name: 'Classic Saronic Loop',
+    shortName: 'Classic Loop',
+    legs: [
+      { from:'Marina Kalamaki', to:'Aegina Town',  km:27, light:'3.5h', mod:'2.5h', strong:'2h',
+        via:[[37.895,23.670],[37.852,23.610],[37.830,23.545],[37.808,23.480],[37.778,23.450]],
+        windNote:'NW Meltemi 10–18 kt — favourable broad reach from Athens to Aegina.',
+        tip:'Sail in the morning before the afternoon Meltemi builds. Aegina harbour is busy — arrive before 14:00 for a good berth.' },
+      { from:'Aegina Town', to:'Poros Town',        km:35, light:'5h', mod:'3.5h', strong:'2.5h',
+        via:[[37.700,23.435],[37.635,23.450],[37.570,23.455],[37.530,23.458]],
+        windNote:'Moderate NW winds — pleasant beam reach past the Temple of Aphaia.',
+        tip:'Consider stopping at Aegina market in the morning before departure. Poros channel is narrow and busy — reduce speed and watch for ferries.' },
+      { from:'Poros Town', to:'Hydra',              km:22, light:'3h', mod:'2h', strong:'1.5h',
+        via:[[37.445,23.458],[37.390,23.462]],
+        windNote:'Wind may funnel through the Poros strait — can be gusty initially, then eases.',
+        tip:'Hydra has no cars — a magical stop. Arrive by noon; the harbour fills quickly. Water taxis serve the town from the quay.' },
+      { from:'Hydra', to:'Spetses',                 km:27, light:'4h', mod:'2.5h', strong:'2h',
+        via:[[37.322,23.415],[37.292,23.298],[37.268,23.205]],
+        windNote:'Open crossing — NW Meltemi gives a comfortable broad reach toward Spetses.',
+        tip:'This is the most open stretch. If wind is above 20 kt, reef early. Spetses old harbour is charming but shallow — check draft.' },
+      { from:'Spetses', to:'Porto Heli',            km:13, light:'2h', mod:'1.5h', strong:'1h',
+        via:[[37.292,23.152]],
+        windNote:'Short hop — wind usually lighter in the lee of Spetses.',
+        tip:'Easy half-day leg. Porto Heli has good tavernas and a calm anchorage — great afternoon swim stop.' },
+      { from:'Porto Heli', to:'Ermioni',            km:20, light:'3h', mod:'2h', strong:'1.5h',
+        via:[[37.358,23.202]],
+        windNote:'NW breeze — short comfortable reach along the mainland coast.',
+        tip:'Ermioni is a lovely local town, less touristy than the islands. The peninsula walk at sunset is worth it.' },
+      { from:'Ermioni', to:'Marina Kalamaki',       km:85, light:'12h', mod:'8h', strong:'6h',
+        via:[[37.372,23.330],[37.390,23.462],[37.510,23.490],[37.655,23.542],[37.800,23.630]],
+        windNote:'Long return — NW Meltemi mostly on the nose. Motoring likely for sections.',
+        tip:'Start before dawn (05:00–06:00) or break overnight at Hydra or Poros. This is the toughest day — plan meals and fuel accordingly.' },
+    ],
+    notes: 'Most beginner-friendly route. All harbours well-equipped. Day 7 is a long motor-sail — consider an overnight stop at Hydra or Poros.',
+  },
+  {
+    name: 'Aegina & Methana Explorer',
+    shortName: 'Methana Explorer',
+    legs: [
+      { from:'Marina Kalamaki', to:'Aegina Town',  km:27, light:'3.5h', mod:'2.5h', strong:'2h',
+        via:[[37.895,23.655],[37.865,23.570],[37.825,23.498],[37.775,23.452]],
+        windNote:'NW Meltemi — comfortable broad reach from Kalamaki to Aegina.',
+        tip:'Perfect first day. Aegina Town is well-equipped and great for an overnight.' },
+      { from:'Aegina Town', to:'Perdika',           km:10, light:'1.5h', mod:'1h', strong:'45min',
+        via:[[37.718,23.412],[37.695,23.402]],
+        windNote:'Short hop south — can be choppy in strong Meltemi.',
+        tip:'Perdika is a gem: tiny fishing village, crystal-clear water, excellent fish tavernas. Arrive early for anchorage.' },
+      { from:'Perdika', to:'Methana (Vathi Bay)',   km:22, light:'3h', mod:'2h', strong:'1.5h',
+        via:[[37.648,23.388],[37.628,23.382]],
+        windNote:'Crossing to the mainland — NW wind on the beam, watch for chop in open water.',
+        tip:'Methana is a volcanic peninsula rarely visited. Vathi Bay is very calm. Explore the warm volcanic springs ashore.' },
+      { from:'Methana (Vathi Bay)', to:'Poros Town',km:18, light:'2.5h', mod:'2h', strong:'1.5h',
+        via:[[37.580,23.418],[37.545,23.448],[37.520,23.452]],
+        windNote:'Short easy leg south with NW wind. Can be gusty near the Poros channel.',
+        tip:'Poros Town straddles a narrow channel — dramatic scenery. The clock tower view from the hill is worth the walk.' },
+      { from:'Poros Town', to:'Galatas',            km:3,  light:'30min', mod:'20min', strong:'15min',
+        windNote:'Tiny crossing — almost no wind effect. Motor recommended.',
+        tip:'Galatas is the mainland village opposite Poros — lemon groves and donkeys. Anchor off or find a small quay.' },
+      { from:'Galatas', to:'Hydra',                 km:35, light:'5h', mod:'3.5h', strong:'2.5h',
+        via:[[37.462,23.458],[37.400,23.460]],
+        windNote:'Longer leg — NW Meltemi should be favourable. Watch for afternoon build.',
+        tip:'Start by 09:00 to reach Hydra comfortably. One of the best destinations in Greece — no cars, stunning architecture.' },
+      { from:'Hydra', to:'Marina Kalamaki',         km:75, light:'11h', mod:'7.5h', strong:'5.5h',
+        via:[[37.402,23.472],[37.542,23.492],[37.698,23.552],[37.822,23.632]],
+        windNote:'NW Meltemi helps on this return leg from Hydra. Motor-sail if wind drops.',
+        tip:'Start at first light. You can break at Aegina Town (midway) to split the distance.' },
+    ],
+    notes: 'Relaxed pace — good for true beginners. Perdika is a charming fishing village. Methana is a volcanic peninsula rarely visited. Day 7 long — start early or anchor midway at Aegina.',
+  },
+  {
+    name: 'Saronic Highlights Fast Loop',
+    shortName: 'Highlights Fast',
+    legs: [
+      { from:'Marina Kalamaki', to:'Aegina Town',  km:27, light:'3.5h', mod:'2.5h', strong:'2h',
+        via:[[37.895,23.655],[37.865,23.570],[37.825,23.498],[37.775,23.452]],
+        windNote:'NW Meltemi — comfortable reach from Kalamaki.',
+        tip:'Classic start. Book a berth in advance in July — Aegina is popular.' },
+      { from:'Aegina Town', to:'Angistri (Skala)', km:12, light:'1.5h', mod:'1h', strong:'45min',
+        via:[[37.728,23.388],[37.712,23.355]],
+        windNote:'Short hop to tiny Angistri — usually calm waters in Meltemi shadow.',
+        tip:'Angistri is beautiful and quiet. Swim at Halikiada beach. Village tavernas are excellent.' },
+      { from:'Angistri (Skala)', to:'Poros Town',  km:40, light:'6h', mod:'4h', strong:'3h',
+        via:[[37.662,23.278],[37.582,23.270],[37.522,23.372],[37.510,23.438]],
+        windNote:'Longest leg — Angistri to Poros may be upwind. Expect tacking in NW Meltemi.',
+        tip:'Start early (07:00). If wind is strong (>18 kt), consider a reef. Fantastic sailing if you enjoy it!' },
+      { from:'Poros Town', to:'Hydra',             km:22, light:'3h', mod:'2h', strong:'1.5h',
+        via:[[37.445,23.458],[37.390,23.462]],
+        windNote:'NW wind eases in Poros lee — pleasant passage.',
+        tip:'Short scenic leg. Hydra is unmissable — spend the afternoon walking the donkey paths.' },
+      { from:'Hydra', to:'Dokos Island',           km:10, light:'1.5h', mod:'1h', strong:'45min',
+        via:[[37.340,23.412]],
+        windNote:'Short crossing — can be choppy if Meltemi is strong.',
+        tip:'Dokos is uninhabited and wild. Anchor in the bay on the north side. Perfect for snorkelling and solitude.' },
+      { from:'Dokos Island', to:'Spetses',         km:22, light:'3h', mod:'2h', strong:'1.5h',
+        via:[[37.308,23.278],[37.272,23.208]],
+        windNote:'NW Meltemi eases towards Spetses — comfortable reach.',
+        tip:'Spetses old harbour is lively — book a table at a waterfront taverna in advance.' },
+      { from:'Spetses', to:'Marina Kalamaki',      km:95, light:'14h', mod:'9h', strong:'7h',
+        via:[[37.282,23.238],[37.332,23.408],[37.402,23.472],[37.548,23.502],[37.702,23.572],[37.832,23.642]],
+        windNote:'Very long return — NW Meltemi mostly on the nose. Motoring likely.',
+        tip:'STRONGLY recommend breaking at Hydra or Poros. Start by 05:00 if going non-stop.' },
+    ],
+    notes: 'Angistri is tiny and beautiful. Dokos is a wild uninhabited anchorage. Day 7 very long; break at Hydra strongly recommended. Day 3 Angistri→Poros may be upwind.',
+  },
+  {
+    name: 'Easy Aegina–Poros Short Loop',
+    shortName: 'Easy Short Loop',
+    legs: [
+      { from:'Marina Kalamaki', to:'Aegina Town',      km:27, light:'3.5h', mod:'2.5h', strong:'2h',
+        via:[[37.895,23.655],[37.865,23.570],[37.825,23.498],[37.775,23.452]],
+        windNote:'NW Meltemi — comfortable first sail on a broad reach.',
+        tip:'Great shakedown day. Arrive early for the best berths. Explore the temple of Aphaia by taxi.' },
+      { from:'Aegina Town', to:'Souvala',               km:15, light:'2h', mod:'1.5h', strong:'1h',
+        via:[[37.758,23.460],[37.778,23.490]],
+        windNote:'Short hop to the quieter NE side of Aegina — more sheltered from Meltemi.',
+        tip:'Souvala is a peaceful local village, far less touristy. Visit the thermal springs and enjoy fresh fish.' },
+      { from:'Souvala', to:'Angistri (Megalochori)',    km:20, light:'3h', mod:'2h', strong:'1.5h',
+        via:[[37.748,23.468],[37.712,23.438],[37.700,23.378]],
+        windNote:'NW Meltemi gives a nice beam reach across to Angistri.',
+        tip:'Megalochori is the quieter anchorage on Angistri. Swim off the boat and dine ashore.' },
+      { from:'Angistri (Megalochori)', to:'Poros Town', km:40, light:'6h', mod:'4h', strong:'3h',
+        via:[[37.642,23.278],[37.572,23.268],[37.522,23.372],[37.510,23.438]],
+        windNote:'Longer upwind leg — NW Meltemi may mean tacking. Manageable in moderate conditions.',
+        tip:'The longest sailing day. Keep the crew engaged — tacking is great practice! Aim to arrive Poros before 14:00.' },
+      { from:'Poros Town', to:'Hydra',                  km:22, light:'3h', mod:'2h', strong:'1.5h',
+        via:[[37.445,23.458],[37.390,23.462]],
+        windNote:'NW winds — pleasant passage in the Saronic islands corridor.',
+        tip:'Hydra is the highlight. No motorbikes or cars — just donkeys and beautiful stone houses.' },
+      { from:'Hydra', to:'Perdika',                     km:45, light:'6.5h', mod:'5h', strong:'3.5h',
+        via:[[37.402,23.462],[37.538,23.472],[37.628,23.442],[37.672,23.422]],
+        windNote:'NW Meltemi is helpful on this northbound leg.',
+        tip:'Longest day of this route. Break at Aegina Town if tired. Perdika is a perfect quiet final evening.' },
+      { from:'Perdika', to:'Marina Kalamaki',           km:30, light:'4h', mod:'3h', strong:'2h',
+        via:[[37.710,23.422],[37.792,23.522],[37.862,23.622]],
+        windNote:'Mostly NW wind — motor-sail north. Manageable final leg.',
+        tip:'The easiest final day of all 5 routes. You can be back in Kalamaki by early afternoon.' },
+    ],
+    notes: 'Most relaxed total distances. Ideal for true beginners. Day 7 is comfortable — early finish possible. Very favourable wind direction. Best route if wind is forecast to be strong.',
+  },
+  {
+    name: 'Saronic & Argolic Extended',
+    shortName: 'Argolic Extended',
+    legs: [
+      { from:'Marina Kalamaki', to:'Aegina Town',  km:27, light:'3.5h', mod:'2.5h', strong:'2h',
+        via:[[37.895,23.655],[37.865,23.570],[37.825,23.498],[37.775,23.452]],
+        windNote:'NW Meltemi — comfortable broad reach departure.',
+        tip:'Start of an adventurous route going furthest south. Check the 5-day weather forecast before departure.' },
+      { from:'Aegina Town', to:'Poros Town',        km:35, light:'5h', mod:'3.5h', strong:'2.5h',
+        via:[[37.700,23.435],[37.635,23.450],[37.570,23.455],[37.530,23.458]],
+        windNote:'NW winds — beautiful passage past mainland headlands.',
+        tip:'Longer day to build confidence. Poros channel is a highlight — sail slowly to enjoy it.' },
+      { from:'Poros Town', to:'Hydra',              km:22, light:'3h', mod:'2h', strong:'1.5h',
+        via:[[37.445,23.458],[37.390,23.462]],
+        windNote:'NW Meltemi may funnel in Poros strait before easing.',
+        tip:'Classic passage. Hydra fills fast in July — consider anchoring off and taking a water taxi in.' },
+      { from:'Hydra', to:'Porto Heli',              km:40, light:'6h', mod:'4h', strong:'3h',
+        via:[[37.330,23.388],[37.310,23.268],[37.320,23.182]],
+        windNote:'Open water crossing into the Argolic Gulf — NW Meltemi can be stiff here.',
+        tip:'Longest open-water passage. Reef if wind is above 20 kt. Porto Heli has a well-protected anchorage.' },
+      { from:'Porto Heli', to:'Koilada',            km:18, light:'2.5h', mod:'2h', strong:'1.5h',
+        via:[[37.318,23.138]],
+        windNote:'Wind lightens in the Argolic Gulf — pleasant easy leg.',
+        tip:'Koilada is a hidden gem — a fjord-like bay with steep cliffs. Very few boats. Swim and anchor in peace.' },
+      { from:'Koilada', to:'Spetses',               km:30, light:'4.5h', mod:'3h', strong:'2.5h',
+        via:[[37.278,23.132]],
+        windNote:'Rounding back NW — NW Meltemi mostly on the nose. Motor-sail sections.',
+        tip:'Last outbound stop. Spetses is lively and fun — celebrate the route before the long return tomorrow.' },
+      { from:'Spetses', to:'Marina Kalamaki',       km:95, light:'14h', mod:'9h', strong:'7h',
+        via:[[37.282,23.238],[37.332,23.408],[37.402,23.472],[37.548,23.502],[37.702,23.572],[37.832,23.642]],
+        windNote:'NW Meltemi on the nose for most of the return — significant motoring expected.',
+        tip:'Start at 05:00. Breaking overnight at Hydra is strongly recommended. This is the toughest day of any route.' },
+    ],
+    notes: 'Ventures furthest south into the Argolic Gulf. Koilada is a secret gem — a deep fjord-like bay. Day 7 is tough; plan an early start or stop overnight at Hydra.',
+  },
+];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let activeRoute = 0;
+let activeLeg   = null;
+let mapLayers   = [];
+let legPolylines = []; // [{pl, color}]
+
+// ── MAP INIT ──────────────────────────────────────────────────────────────────
+const map = L.map('map', { center: [37.55, 23.30], zoom: 9, zoomControl: true });
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 18,
+}).addTo(map);
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function pathMidpoint(pts) {
+  let total = 0;
+  const segs = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const d = Math.hypot(pts[i+1][0]-pts[i][0], pts[i+1][1]-pts[i][1]);
+    segs.push(d);
+    total += d;
+  }
+  let target = total / 2, acc = 0;
+  for (let i = 0; i < segs.length; i++) {
+    if (acc + segs[i] >= target) {
+      const t = (target - acc) / segs[i];
+      return [pts[i][0] + t*(pts[i+1][0]-pts[i][0]), pts[i][1] + t*(pts[i+1][1]-pts[i][1])];
+    }
+    acc += segs[i];
+  }
+  return pts[Math.floor(pts.length / 2)];
+}
+
+function makeStopIcon(name, isStart) {
+  const short = name.replace('Marina ','').replace(' Town','').replace(' (Skala)','').replace(' (Megalochori)','').replace(' (Vathi Bay)','');
+  return L.divIcon({
+    className: '',
+    html: `<div class="stop-label" style="${isStart ? 'background:#0e7c7b;border-color:#0e7c7b' : ''}">${short}</div>`,
+    iconAnchor: [0, 8],
+    iconSize: null,
+  });
+}
+
+function makeDayIcon(label, color) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="day-marker" style="color:${color};border-color:${color}">${label}</div>`,
+    iconAnchor: [11, 11],
+    iconSize: [22, 22],
+  });
+}
+
+// ── HIGHLIGHT ─────────────────────────────────────────────────────────────────
+function highlightLeg(legIdx) {
+  legPolylines.forEach(({ pl, color }, i) => {
+    if (i === legIdx) {
+      pl.setStyle({ color, weight: 5, opacity: 1 });
+      pl.bringToFront();
+    } else {
+      pl.setStyle({ color: '#b0bec5', weight: 2, opacity: 0.4 });
+    }
+  });
+}
+
+function resetHighlight() {
+  legPolylines.forEach(({ pl, color }) => {
+    pl.setStyle({ color, weight: 4, opacity: 0.85 });
+  });
+}
+
+// ── RENDER ROUTE ON MAP ───────────────────────────────────────────────────────
+function renderRoute(routeIdx) {
+  mapLayers.forEach(l => map.removeLayer(l));
+  mapLayers = [];
+  legPolylines = [];
+
+  const route = ROUTES[routeIdx];
+  const allStops = new Map();
+
+  route.legs.forEach((leg, i) => {
+    const color = DAY_COLORS[i];
+    const from  = COORDS[leg.from];
+    const to    = COORDS[leg.to];
+    const path  = [from, ...(leg.via || []), to];
+
+    const pl = L.polyline(path, { color, weight: 4, opacity: 0.85 }).addTo(map);
+    pl.on('click', () => openDetail(routeIdx, i));
+    mapLayers.push(pl);
+    legPolylines.push({ pl, color });
+
+    const mid = pathMidpoint(path);
+    const dm = L.marker(mid, { icon: makeDayIcon(`D${i+1}`, color), zIndexOffset: 200 }).addTo(map);
+    dm.on('click', () => openDetail(routeIdx, i));
+    mapLayers.push(dm);
+
+    if (!allStops.has(leg.from)) allStops.set(leg.from, { coord: from, isStart: i === 0 });
+    if (!allStops.has(leg.to))   allStops.set(leg.to,   { coord: to,   isStart: false });
+  });
+
+  allStops.forEach((val, name) => {
+    const m = L.marker(val.coord, { icon: makeStopIcon(name, val.isStart), zIndexOffset: 100 }).addTo(map);
+    m.bindTooltip(name, { direction: 'top', offset: [0, -8] });
+    mapLayers.push(m);
+  });
+}
+
+// ── OVERVIEW TABLE ────────────────────────────────────────────────────────────
+function renderOverview(routeIdx) {
+  const tbody = document.getElementById('overviewBody');
+  const route = ROUTES[routeIdx];
+  tbody.innerHTML = route.legs.map((leg, i) => {
+    const color    = DAY_COLORS[i];
+    const shortFrom = leg.from.replace('Marina ','').replace(' Town','').replace(' (Skala)','').replace(' (Megalochori)','').replace(' (Vathi Bay)','');
+    const shortTo   = leg.to.replace('Marina ','').replace(' Town','').replace(' (Skala)','').replace(' (Megalochori)','').replace(' (Vathi Bay)','');
+    return `<tr class="${activeLeg === i ? 'selected' : ''}" data-leg="${i}">
+      <td><span class="day-chip"><span class="day-dot" style="background:${color}"></span>D${i+1} <span style="color:var(--text-muted);font-weight:400;font-size:10px">${DATES[i].split(' ')[0]}</span></span></td>
+      <td style="color:var(--text-mid)">${shortFrom} → ${shortTo}</td>
+      <td style="text-align:right;font-weight:600">${leg.km}</td>
+      <td style="text-align:right;color:var(--text-mid)">${leg.mod}</td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('tr').forEach(tr => {
+    tr.addEventListener('click', () => openDetail(routeIdx, parseInt(tr.dataset.leg)));
+  });
+}
+
+// ── LEG DETAIL ────────────────────────────────────────────────────────────────
+function openDetail(routeIdx, legIdx) {
+  activeLeg = legIdx;
+  const route = ROUTES[routeIdx];
+  const leg   = route.legs[legIdx];
+  const color = DAY_COLORS[legIdx];
+
+  highlightLeg(legIdx);
+
+  document.getElementById('detailContent').innerHTML = `
+    <div class="detail-header" style="background:${color}; color:#fff">
+      <div class="detail-header-text">
+        <div class="detail-day">Day ${legIdx+1} &mdash; ${DATES[legIdx]}</div>
+        <div class="detail-route-label">${leg.from.replace('Marina ','')} → ${leg.to.replace('Marina ','')}</div>
+        <div class="detail-sub">${route.name}</div>
+      </div>
+      <button class="detail-close" id="detailClose">&#215;</button>
+    </div>
+
+    <div class="detail-section">
+      <div class="section-label">Leg details</div>
+      <div class="stat-row"><span class="stat-icon">📍</span><span class="stat-label">From</span><span class="stat-value">${leg.from}</span></div>
+      <div class="stat-row"><span class="stat-icon">🏁</span><span class="stat-label">To</span><span class="stat-value">${leg.to}</span></div>
+      <div class="stat-row"><span class="stat-icon">📏</span><span class="stat-label">Distance</span><span class="stat-value">${leg.km} km</span></div>
+    </div>
+
+    <div class="detail-section">
+      <div class="section-label">Duration by wind</div>
+      <table class="duration-table">
+        <thead><tr><th>Condition</th><th>Speed</th><th>Duration</th></tr></thead>
+        <tbody>
+          <tr><td><span class="wind-pip w-light"></span> Light</td><td style="color:var(--text-muted)">10–12 kt</td><td>${leg.light}</td></tr>
+          <tr><td><span class="wind-pip w-moderate"></span> Moderate</td><td style="color:var(--text-muted)">15–18 kt</td><td>${leg.mod}</td></tr>
+          <tr><td><span class="wind-pip w-strong"></span> Strong</td><td style="color:var(--text-muted)">20–25 kt</td><td>${leg.strong}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="detail-section">
+      <div class="section-label">Wind conditions</div>
+      <div class="note-box"><strong>⚓ Wind note</strong>${leg.windNote}</div>
+    </div>
+
+    <div class="detail-section">
+      <div class="section-label">Beginner tip</div>
+      <div class="tip-box"><strong>💡 Tip</strong>${leg.tip}</div>
+    </div>
+  `;
+
+  document.getElementById('detailClose').addEventListener('click', closeDetail);
+  document.getElementById('panelDetail').classList.add('open');
+
+  renderOverview(routeIdx);
+}
+
+function closeDetail() {
+  activeLeg = null;
+  document.getElementById('panelDetail').classList.remove('open');
+  resetHighlight();
+  renderOverview(activeRoute);
+}
+
+// ── ROUTE SWITCHER ────────────────────────────────────────────────────────────
+function renderDots() {
+  const wrap = document.getElementById('routeDots');
+  wrap.innerHTML = ROUTES.map((_, i) =>
+    `<div class="route-dot${i === activeRoute ? ' active' : ''}" data-i="${i}" title="Route ${i+1}: ${ROUTES[i].name}"></div>`
+  ).join('');
+  wrap.querySelectorAll('.route-dot').forEach(d => {
+    d.addEventListener('click', () => switchRoute(parseInt(d.dataset.i)));
+  });
+}
+
+function switchRoute(idx) {
+  activeRoute = idx;
+  activeLeg   = null;
+  closeDetail();
+  document.getElementById('routeCounter').textContent = `Route ${idx + 1} of 5`;
+  document.getElementById('routeName').textContent    = ROUTES[idx].name;
+  renderDots();
+  renderRoute(idx);
+  renderOverview(idx);
+}
+
+document.getElementById('prevBtn').addEventListener('click', () => {
+  switchRoute((activeRoute + ROUTES.length - 1) % ROUTES.length);
+});
+document.getElementById('nextBtn').addEventListener('click', () => {
+  switchRoute((activeRoute + 1) % ROUTES.length);
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft')  document.getElementById('prevBtn').click();
+  if (e.key === 'ArrowRight') document.getElementById('nextBtn').click();
+  if (e.key === 'Escape')     closeDetail();
+});
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+renderDots();
+renderRoute(0);
+renderOverview(0);
+</script>
+</body>
+</html>
