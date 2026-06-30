@@ -308,6 +308,12 @@ function fmtTime(km, speed){
   return hh+'h'+(mm<10?'0':'')+mm;
 }
 
+function fmtTimeRange(km){
+  const lo = fmtTime(km, WIND[2].speed); // strong wind = fastest
+  const hi = fmtTime(km, WIND[0].speed); // light wind = slowest
+  return `${lo}–${hi}`;
+}
+
 const days = Array(7).fill(null);
 const stayedDays = new Set();
 let activeDay = 0;
@@ -529,7 +535,7 @@ function renderPanel(){
             <span class="dest-name">Marina Kalamaki ⚓</span>
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:5px">
-            <span class="dist-badge">${dist.toFixed(1)} km</span>
+            <span class="dist-badge">${dist.toFixed(1)} km · ${fmtTimeRange(dist)}</span>
             <a class="details-link" onclick="openSidebar(6);event.stopPropagation()">details ›</a>
           </div>
         </div>`;
@@ -585,7 +591,7 @@ function renderPanel(){
           <span class="dest-name">${d.name}</span>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:5px">
-          <span class="dist-badge">${dist.toFixed(1)} km</span>
+          <span class="dist-badge">${dist.toFixed(1)} km · ${fmtTimeRange(dist)}</span>
           <a class="details-link" onclick="openSidebar(${i});event.stopPropagation()">details ›</a>
         </div>
         ${dayComment}
