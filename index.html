@@ -323,8 +323,9 @@ let markers = {};
 let sidebarDay = null;
 
 const map = L.map('map',{center:[37.55,23.35],zoom:9,zoomControl:true});
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-  attribution:'© OpenStreetMap contributors',maxZoom:18
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{
+  attribution:'© <a href="https://www.esri.com/">Esri</a> — Esri, DeLorme, NAVTEQ',
+  maxZoom:17
 }).addTo(map);
 
 function makeIcon(type, selected, dayNum){
