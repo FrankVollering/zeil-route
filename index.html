@@ -43,6 +43,7 @@ header .sub{font-size:11px;color:#64748b;margin-left:12px}
 .dist-badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600;color:#1a2e4a;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:2px 7px;margin-top:5px}
 
 .hint{font-size:12px;color:#94a3b8;margin-top:4px}
+.day-comment{font-size:11px;color:#64748b;margin-top:5px;line-height:1.4;border-left:2px solid #cbd5e1;padding-left:6px}
 .day-row.active .hint{color:#0d9488;font-weight:500;animation:pulse-hint 1.5s infinite}
 @keyframes pulse-hint{0%,100%{opacity:1}50%{opacity:.4}}
 
@@ -308,6 +309,7 @@ function fmtTime(km, speed){
 }
 
 const days = Array(7).fill(null);
+const stayedDays = new Set();
 let activeDay = 0;
 let polylines = [];
 let arrowMarkers = [];
@@ -354,7 +356,9 @@ function typeBadgeClass(type){
 
 function getFrom(dayIdx){
   if(dayIdx===0) return KALAMAKI;
-  return days[dayIdx-1] || KALAMAKI;
+  if(days[dayIdx-1]) return days[dayIdx-1];
+  if(stayedDays.has(dayIdx-1)) return getFrom(dayIdx-1);
+  return KALAMAKI;
 }
 
 function getHarbourById(id){ return HARBOURS.find(h=>h.id===id); }
@@ -445,6 +449,15 @@ function setReturnLeg(){
   }
 }
 
+function stayDay(dayIdx){
+  stayedDays.add(dayIdx);
+  days[dayIdx] = null;
+  clearPolyline(dayIdx);
+  activeDay = dayIdx < 5 ? dayIdx + 1 : 7;
+  renderPanel();
+  updateSummary();
+}
+
 function selectHarbour(h){
   if(activeDay >= 6) return;
   const prev = days[activeDay];
@@ -462,6 +475,7 @@ function clearDay(dayIdx){
   if(dayIdx === 6) return;
   const h = days[dayIdx];
   days[dayIdx] = null;
+  stayedDays.delete(dayIdx);
   if(h) updateMarkerIcon(h);
   clearPolyline(dayIdx);
   for(let i=dayIdx+1;i<6;i++){ clearPolyline(i); drawLeg(i); }
@@ -478,6 +492,7 @@ function clearAll(){
     if(h && h.id!=='kalamaki') updateMarkerIcon(h);
     clearPolyline(i);
   }
+  stayedDays.clear();
   activeDay=0;
   renderPanel();
   updateSummary();
@@ -487,7 +502,7 @@ function renderPanel(){
   const container = document.getElementById('days-container');
   container.innerHTML='';
   const banner = document.getElementById('complete-banner');
-  const allFilled = days.slice(0,6).every(d=>d!==null);
+  const allFilled = days.slice(0,6).every((d,i)=>d!==null||stayedDays.has(i));
   banner.style.display = allFilled ? 'block' : 'none';
 
   for(let i=0;i<7;i++){
@@ -532,14 +547,35 @@ function renderPanel(){
       continue;
     }
 
+    const isStayed = stayedDays.has(i);
+
     let cls = 'day-row ';
     if(isActive) cls+='active';
+    else if(isStayed) cls+='filled-inactive';
     else if(!d) cls+='empty-inactive';
     else cls+='filled-inactive';
     div.className=cls;
-    div.onclick=(e)=>{ if(!e.target.classList.contains('clear-btn') && !e.target.closest('.details-link')){activeDay=i;renderPanel();} };
+    div.onclick=(e)=>{ if(!e.target.classList.contains('clear-btn') && !e.target.closest('.details-link') && !e.target.closest('.stay-btn')){activeDay=i;renderPanel();} };
 
-    if(d){
+    let dayComment = '';
+    if(i===1){
+      const dest = d || (isStayed ? from : null);
+      const r2rLink = dest
+        ? `<a href="https://www.rome2rio.com/map/Athens-Airport-ATH/${dest.lat},${dest.lng}" target="_blank" rel="noopener" style="color:#0d9488;text-decoration:none;font-weight:500" onclick="event.stopPropagation()">Ferry options via Rome2Rio ›</a>`
+        : '';
+      dayComment = `<div class="day-comment">Pickup Myr — transit from Athens airport to destination. ${r2rLink}</div>`;
+    }
+
+    const stayBtn = i===0 && !isStayed ? `<button class="stay-btn" onclick="stayDay(${i});event.stopPropagation()" style="font-size:10px;color:#64748b;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:2px 8px;cursor:pointer;margin-top:5px">Stay in harbour</button>` : '';
+
+    if(isStayed){
+      inner = `<div class="row-inner">
+        <div class="day-label">${dayLabelTxt}</div>
+        <div class="route-line"><span class="from-name" style="font-style:italic;color:#94a3b8">Staying at ${fromShort}</span></div>
+        ${dayComment}
+        <button class="clear-btn" onclick="clearDay(${i});event.stopPropagation()" title="Clear">✕</button>
+      </div>`;
+    } else if(d){
       const dist = legDistance(from, d);
       inner = `<div class="row-inner">
         <div class="day-label">${dayLabelTxt}</div>
@@ -552,6 +588,7 @@ function renderPanel(){
           <span class="dist-badge">${dist.toFixed(1)} km</span>
           <a class="details-link" onclick="openSidebar(${i});event.stopPropagation()">details ›</a>
         </div>
+        ${dayComment}
         <button class="clear-btn" onclick="clearDay(${i});event.stopPropagation()" title="Clear">✕</button>
       </div>`;
     } else if(isActive){
@@ -559,12 +596,15 @@ function renderPanel(){
         <div class="day-label">${dayLabelTxt}</div>
         <div class="route-line"><span class="from-name">${fromShort}</span><span class="arrow">→</span></div>
         <div class="hint">👆 Click a harbour on the map</div>
+        ${stayBtn}
+        ${dayComment}
       </div>`;
     } else {
       inner = `<div class="row-inner">
         <div class="day-label">${dayLabelTxt}</div>
         <div class="route-line"><span class="from-name">${fromShort}</span><span class="arrow">→</span></div>
         <div class="hint">Select harbour above first</div>
+        ${dayComment}
       </div>`;
     }
     div.innerHTML=inner;
@@ -573,7 +613,7 @@ function renderPanel(){
 }
 
 function updateSummary(){
-  const filled = days.slice(0,6).filter(d=>d!==null).length;
+  const filled = days.slice(0,6).filter(d=>d!==null).length + [...stayedDays].filter(i=>i<6).length;
   document.getElementById('s-filled').textContent=filled;
   let total=0;
   let legDists = [];
